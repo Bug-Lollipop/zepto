@@ -5,9 +5,16 @@ var Zepto = (function() {
         document = window.document,
         elementDisplay = {}, classCache = {},
         cssNumber = { 'column-count': 1, 'columns': 1, 'font-weight': 1, 'line-height': 1,'opacity': 1, 'z-index': 1, 'zoom': 1 },
+        //这里正则表达式里面加一个!是用来匹配html注释的：<!--comment-->
+        //正则解析：以<开始，接任意\w字符或者!符号，在街上非>字符，再以>结束
+        //其实这里就是匹配非自闭合标签的开始部分
         fragmentRE = /^\s*<(\w+|!)[^>]*>/,
+    //正则解析：以<开始，中间是标签名字\w，然后任意空格，再一个可选反斜线\，再一个标签结束符</>,标签结束符中间标签名和前面标签名一致
         singleTagRE = /^<(\w+)\s*\/?>(?:<\/\1>|)$/,
+    //正则解析：以<开始，后面不是标签area|br|col|embed|hr|img|input|link|meta|param的任意字符（字母、数字、:、非>），再接闭合标签/>
+    //根据后面的代码可以知道，这里是一个容错机制，即Zepto使用者可能会把标签写错，比如把<a></a>写成<a/>,在调用zepto.fragment的时候，自动将错误的转正确
         tagExpanderRE = /<(?!area|br|col|embed|hr|img|input|link|meta|param)(([\w:]+)[^>]*)\/>/ig,
+        //正则解析：匹配body或者html字符串
         rootNodeRE = /^(?:body|html)$/i,
         capitalRE = /([A-Z])/g,
 
@@ -130,28 +137,47 @@ var Zepto = (function() {
         var dom, nodes, container
 
         // A special case optimization for a single tag
+        //如果判断html是单个html标签，则直接通过document.createElement方法创建元素，生成dom
         if (singleTagRE.test(html)) dom = $(document.createElement(RegExp.$1))
 
+        //如果上面dom没有生成，即html不是单个html标签，则执行以下代码
         if (!dom) {
+            //这里是一个容错机制，把html='<a/>'转成html='<a></a>'
             if (html.replace) html = html.replace(tagExpanderRE, "<$1></$2>")
+            //如果没有传入name参数，看html是否匹配非自闭合标签的开始部分，如<a>，并且正则分组1不为空即fragmentRE中的(\w+|!)匹配的部分
             if (name === undefined) name = fragmentRE.test(html) && RegExp.$1
+            //如果name不containers对象的属性当中，则name='*'
             if (!(name in containers)) name = '*'
 
             container = containers[name]
             container.innerHTML = '' + html
+            //这里其实是执行了2个操作：
+            //1，遍历container的子节点，并一一删除，目的是还原容器container
+            //2，$.each会返回一个$container.childNodes的引用，然后赋给dom变量
             dom = $.each(slice.call(container.childNodes), function(){
                 container.removeChild(this)
             })
         }
 
+        //不管上面的2个if是否执行，都会检查该项properties
+        //如果properties对象直接继承自Object.prototype
+        //疑问：这里针对的操作和修改都是在nodes上面，并没有影响到dom对象，这样操作有什么意义呢？
         if (isPlainObject(properties)) {
+            //首先使用$函数把dom对象转换成标准的Zepto对象
             nodes = $(dom)
+            //再遍历properties属性，
             $.each(properties, function(key, value) {
+                //如果key是methodAttributes中一员，则执行nodes的该方法，并且传入参数即是该方法名key对应的value值
+                //疑问：这里执行这个函数有什么用呢？
+                //methodAttributes的值：['val', 'css', 'html', 'text', 'data', 'width', 'height', 'offset'],
                 if (methodAttributes.indexOf(key) > -1) nodes[key](value)
+                //否则设置nodes的key值为value
                 else nodes.attr(key, value)
             })
         }
 
+        //经过以上处理之后，返回dom
+        //这里返回的dom对象，要么是标准的Zepto对象（第一个if成立的情况下），要么是dom数组(第二个if成立的情况下)
         return dom
     }
 
@@ -159,6 +185,8 @@ var Zepto = (function() {
     // of nodes with `$.fn` and thus supplying all the Zepto functions
     // to the array. Note that `__proto__` is not supported on Internet
     // Explorer. This method can be overriden in plugins.
+    //把dom的原型指向$.fn，从而使dom拥有$.fn上的所有方法。并且给dom对象添加selector属性
+    //这里通过zepto.Z(dom, selector)和new zepto.Z(dom, selector)生成的对象d，其d instanceof zepto.Z的值都为false
     zepto.Z = function(dom, selector) {
         dom = dom || []
         dom.__proto__ = $.fn
@@ -168,6 +196,7 @@ var Zepto = (function() {
 
     // `$.zepto.isZ` should return `true` if the given object is a Zepto
     // collection. This method can be overriden in plugins.
+    //这种object什么情况下才会产生？因为直接通过zepto.Z生产出来的对象都会返回false
     zepto.isZ = function(object) {
         return object instanceof zepto.Z
     }
@@ -186,6 +215,7 @@ var Zepto = (function() {
             // If it's a html fragment, create nodes from it
             // Note: In both Chrome 21 and Firefox 15, DOM error 12
             // is thrown if the fragment doesn't begin with <
+            //如果selector是html元素，即以<开头，并且匹配fragmentRE
             if (selector[0] == '<' && fragmentRE.test(selector))
                 dom = zepto.fragment(selector, RegExp.$1, context), selector = null
             // If there's a context, create a collection on that context first, and select
