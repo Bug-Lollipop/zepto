@@ -74,8 +74,12 @@ var Zepto = (function() {
     }
     function likeArray(obj) { return typeof obj.length == 'number' }
 
+    // compact压紧，（使）坚实; 把…弄紧密，把…弄结实; 使（文体）简洁，简化; 变紧密，变结实
+    // 该函数去掉数组中为空的元素，如undefined和null
     function compact(array) { return filter.call(array, function(item){ return item != null }) }
+    //这里是把类数组对象转换成标准的数组对象
     function flatten(array) { return array.length > 0 ? $.fn.concat.apply([], array) : array }
+    //该函数把a-bc-de类型的转换成aBcDe类型
     camelize = function(str){ return str.replace(/-+(.)?/g, function(match, chr){ return chr ? chr.toUpperCase() : '' }) }
     function dasherize(str) {
         return str.replace(/::/g, '/')
@@ -84,6 +88,7 @@ var Zepto = (function() {
             .replace(/_/g, '-')
             .toLowerCase()
     }
+    //数组去重，使用了filter方法
     uniq = function(array){ return filter.call(array, function(item, idx){ return array.indexOf(item) == idx }) }
 
     function classRE(name) {
@@ -108,6 +113,8 @@ var Zepto = (function() {
         return elementDisplay[nodeName]
     }
 
+    //如果element对象有children属性，则直接返回该属性值，并解构成数组
+    //否则对该元素的childNodes属性进行过滤，过滤出nodeType==1的所有子节点
     function children(element) {
         return 'children' in element ?
             slice.call(element.children) :
