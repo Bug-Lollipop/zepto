@@ -84,7 +84,7 @@ var Zepto = (function() {
     // compact压紧，（使）坚实; 把…弄紧密，把…弄结实; 使（文体）简洁，简化; 变紧密，变结实
     // 该函数去掉数组中为空的元素，如undefined和null
     function compact(array) { return filter.call(array, function(item){ return item != null }) }
-    //这里是把类数组对象转换成标准的数组对象
+    //这里是把二维数组降维成一维数组，也可以把类数组对象转换成标准数组
     function flatten(array) { return array.length > 0 ? $.fn.concat.apply([], array) : array }
     //该函数把a-bc-de类型的转换成aBcDe类型
     camelize = function(str){ return str.replace(/-+(.)?/g, function(match, chr){ return chr ? chr.toUpperCase() : '' }) }
@@ -133,6 +133,12 @@ var Zepto = (function() {
     // The generated DOM nodes are returned as an array.
     // This function can be overriden in plugins for example to make
     // it compatible with browsers that don't support the DOM fully.
+    /*****
+     * 这里有必要解释一下3个参数的含义
+     * html提供的是html标签及内容
+     * name提供该html标签的名字
+     * properties提供属性：暂定，后续补充
+     ***/
     zepto.fragment = function(html, name, properties) {
         var dom, nodes, container
 
@@ -168,7 +174,7 @@ var Zepto = (function() {
             //再遍历properties属性，
             $.each(properties, function(key, value) {
                 //如果key是methodAttributes中一员，则执行nodes的该方法，并且传入参数即是该方法名key对应的value值
-                //疑问：这里执行这个函数有什么用呢？
+                //疑问：这里执行这个函数有什么用呢？要从nodes=$(dom)分析入手
                 //methodAttributes的值：['val', 'css', 'html', 'text', 'data', 'width', 'height', 'offset'],
                 if (methodAttributes.indexOf(key) > -1) nodes[key](value)
                 //否则设置nodes的key值为value
@@ -196,7 +202,7 @@ var Zepto = (function() {
 
     // `$.zepto.isZ` should return `true` if the given object is a Zepto
     // collection. This method can be overriden in plugins.
-    //这种object什么情况下才会产生？因为直接通过zepto.Z生产出来的对象都会返回false
+    //疑问：这种object什么情况下才会产生？因为直接通过zepto.Z生产出来的对象都会返回false
     zepto.isZ = function(object) {
         return object instanceof zepto.Z
     }
@@ -210,31 +216,38 @@ var Zepto = (function() {
         // If nothing given, return an empty Zepto collection
         if (!selector) return zepto.Z()
         // Optimize for string selectors
+        //1.如果selector是字符串：
         else if (typeof selector == 'string') {
             selector = selector.trim()
             // If it's a html fragment, create nodes from it
             // Note: In both Chrome 21 and Firefox 15, DOM error 12
             // is thrown if the fragment doesn't begin with <
-            //如果selector是html元素，即以<开头，并且匹配fragmentRE
+            //先判断：如果selector是html元素，即以<开头，并且匹配fragmentRE
             if (selector[0] == '<' && fragmentRE.test(selector))
                 dom = zepto.fragment(selector, RegExp.$1, context), selector = null
             // If there's a context, create a collection on that context first, and select
             // nodes from there
+            //如果context有的话，则认为selector是选择器，在context下调用选择器查找
             else if (context !== undefined) return $(context).find(selector)
             // If it's a CSS selector, use it to select nodes.
             else dom = zepto.qsa(document, selector)
         }
         // If a function is given, call it when the DOM is ready
+        //2.如果selector是函数，则是一个dom加载完的回调函数
         else if (isFunction(selector)) return $(document).ready(selector)
         // If a Zepto collection is given, just return it
+        //3.如果selector本来就是一个Zepto对象，则直接返回该Zepto对象
         else if (zepto.isZ(selector)) return selector
         else {
             // normalize array if an array of nodes is given
+            //4.如果selector是一个数组，则先去除selector数组中的undefined和null值
             if (isArray(selector)) dom = compact(selector)
             // Wrap DOM nodes.
+            //5.如果selector是一个对象，则将其转成数组
             else if (isObject(selector))
                 dom = [selector], selector = null
             // If it's a html fragment, create nodes from it
+            //如果selector是一个html标签字符串，则调用zepto.fragment方法生成dom
             else if (fragmentRE.test(selector))
                 dom = zepto.fragment(selector.trim(), RegExp.$1, context), selector = null
             // If there's a context, create a collection on that context first, and select
@@ -244,6 +257,7 @@ var Zepto = (function() {
             else dom = zepto.qsa(document, selector)
         }
         // create a new Zepto collection from the nodes found
+        //根据dom生成一个zepto.Z对象
         return zepto.Z(dom, selector)
     }
 
@@ -251,10 +265,14 @@ var Zepto = (function() {
     // function just call `$.zepto.init, which makes the implementation
     // details of selecting nodes and creating Zepto collections
     // patchable in plugins.
+    //调用$()函数的时候，其实返回的是zepto.init()对象
+    //而zepto.init()执行的时候，返回的其实是zepto.Z()对象
+    //zepto.Z对象返回的其实是标准的dom对象，只是这个dom对象的原型指向了$.fn对象,从而扩展了该dom对象的方法和属性
     $ = function(selector, context){
         return zepto.init(selector, context)
     }
 
+    //对象拷贝函数
     function extend(target, source, deep) {
         for (key in source)
             if (deep && (isPlainObject(source[key]) || isArray(source[key]))) {
@@ -270,12 +288,19 @@ var Zepto = (function() {
     // Copy all but undefined properties from one or more
     // objects to the `target` object.
     $.extend = function(target){
+        //把source从arguments里面截取出来
         var deep, args = slice.call(arguments, 1)
+        //如果第一个参数target是boolean类型，则认为是一个深浅拷贝，这时候第二个参数被认为是target，第一个参数是deep标记位
         if (typeof target == 'boolean') {
             deep = target
+            //这里其实进行了2步操作：
+            //1.从args中取出第一个元素作为target
+            //2.从args中移除了第一个元素，也即从第三个函数参数开始作为source对象
             target = args.shift()
         }
+        //对每一个args对象执行extend属性拷贝动作，后面的source对象属性会覆盖前面source的属性
         args.forEach(function(arg){ extend(target, arg, deep) })
+        //返回最终的合并之后的target对象
         return target
     }
 
@@ -286,6 +311,7 @@ var Zepto = (function() {
         var found,
             maybeID = selector[0] == '#',
             maybeClass = !maybeID && selector[0] == '.',
+        //如果selector是id或者类选择器，则去掉前面的#或者.，否则直接使用selector
             nameOnly = maybeID || maybeClass ? selector.slice(1) : selector, // Ensure that a 1 char tag name still gets checked
             isSimple = simpleSelectorRE.test(nameOnly)
         return (isDocument(element) && isSimple && maybeID) ?
@@ -379,6 +405,8 @@ var Zepto = (function() {
     $.support = { }
     $.expr = { }
 
+    //该map函数和Array.prototype.map函数不一样，这个函数还可以遍历对象，并且返回值中不会出现undefined和null
+    //遍历对象的时候，还会遍历该对象的可枚举的原型属性
     $.map = function(elements, callback){
         var value, values = [], i, key
         if (likeArray(elements))
