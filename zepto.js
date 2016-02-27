@@ -31,6 +31,7 @@ var Zepto = (function() {
             '*': document.createElement('div')
         },
         readyRE = /complete|loaded|interactive/,
+    //简单选择器：只包含字母数字下划线和中划线，没有那些[]:等等之类的复杂选择器
         simpleSelectorRE = /^[\w-]*$/,
         class2type = {},
         toString = class2type.toString,
@@ -305,7 +306,7 @@ var Zepto = (function() {
     }
 
     // `$.zepto.qsa` is Zepto's CSS selector implementation which
-    // uses `document.querySelectorAll` and optimizes for some special cases, like `#id`.
+    // uses `document.querySelectorAll` and optimizes for some special cases, like `#id`.从这里可以看出，querySelectorAll的选择效率最低
     // This method can be overriden in plugins.
     zepto.qsa = function(element, selector){
         var found,
@@ -313,18 +314,33 @@ var Zepto = (function() {
             maybeClass = !maybeID && selector[0] == '.',
         //如果selector是id或者类选择器，则去掉前面的#或者.，否则直接使用selector
             nameOnly = maybeID || maybeClass ? selector.slice(1) : selector, // Ensure that a 1 char tag name still gets checked
+            //是否简单选择器
             isSimple = simpleSelectorRE.test(nameOnly)
+        /***
+         * 1，如果element是普通的dom元素，并且选择器是简单选择器，并且是ID选择器，则直接调用getElementById去查找元素，找到了，就返回元素数组，否则返回空数组
+         * 2，如果1不成立，且element的nodeType不等于1(nodeType==1代表普通dom元素)，且不等于9(nodeType==9代表document元素)，则直接返回空
+         * 3，如果1，2不成立，且是简单选择器，并且不是ID选择器，那么判断是否是类选择器，如果是类选择器，则调用element的getElementsByClassName函数去获取，
+         * 如果不是id选择器，也不是类选择器，也不是，则认为是tag选择器
+         * 如果不是简单选择器，或者不是id选择器，则调用querySelectorAll方法
+         * ***/
         return (isDocument(element) && isSimple && maybeID) ?
             ( (found = element.getElementById(nameOnly)) ? [found] : [] ) :
+            //如果element不是普通元素，也不是document元素，则返回空数组
             (element.nodeType !== 1 && element.nodeType !== 9) ? [] :
+                //element是普通dom元素，或者是document元素，将结果拼接成标准数组，并作为函数返回值返回
                 slice.call(
+                        //是简单选择器，且不是id选择器
                     isSimple && !maybeID ?
+                                    //不是类选择器
                         maybeClass ? element.getElementsByClassName(nameOnly) : // If it's simple, it could be a class
+                            //不是类选择器，那只能是tag选择器了
                             element.getElementsByTagName(selector) : // Or a tag
+                        //不是简单选择器，或者是id选择器，调用querySelectorAll
                         element.querySelectorAll(selector) // Or it's not simple, and we need to query all
                 )
     }
 
+    //没有选择器，则直接返回$(nodes), 否则，从$(nodes)里面过滤
     function filtered(nodes, selector) {
         return selector == null ? $(nodes) : $(nodes).filter(selector)
     }
@@ -494,6 +510,8 @@ var Zepto = (function() {
             return this
         },
         filter: function(selector){
+            //这里面的this，都是只想调用该filter方法的Zepto对象
+            //如果filter是函数，则
             if (isFunction(selector)) return this.not(this.not(selector))
             return $(filter.call(this, function(element){
                 return zepto.matches(element, selector)
@@ -507,11 +525,15 @@ var Zepto = (function() {
         },
         not: function(selector){
             var nodes=[]
+            //如果参数selector是函数，则遍历该Zepto对象。该函数有一个参数idx，返回值类型是Boolean类型
             if (isFunction(selector) && selector.call !== undefined)
                 this.each(function(idx){
+                    //这里面的this是从Zepto对象里面遍历出来的普通dom对象
+                    //如果以该dom作为上下文调用该函数selector，返回值为假，则将该dom元素存入nodes数组
                     if (!selector.call(this,idx)) nodes.push(this)
                 })
             else {
+                //如果selector不是函数，
                 var excludes = typeof selector == 'string' ? this.filter(selector) :
                     (likeArray(selector) && isFunction(selector.item)) ? slice.call(selector) : $(selector)
                 this.forEach(function(el){
