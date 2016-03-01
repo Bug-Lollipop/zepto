@@ -30,6 +30,8 @@ var Zepto = (function() {
             'td': tableRow, 'th': tableRow,
             '*': document.createElement('div')
         },
+    //这3个正则是页面加载的时候，document.readyState状态值 先loading->interactive->complete
+    //当document文档正在加载时,返回"loading",当文档结束渲染但在加载内嵌资源时,返回"interactive",当文档加载完成时,返回"complete".
         readyRE = /complete|loaded|interactive/,
         simpleSelectorRE = /^[\w-]*$/,
         class2type = {},
@@ -98,6 +100,9 @@ var Zepto = (function() {
     //数组去重，使用了filter方法
     uniq = function(array){ return filter.call(array, function(item, idx){ return array.indexOf(item) == idx }) }
 
+    //函数功能：返回一个css类名的正则表达式
+    //首先判断classCache里面有没有name，没有就新建，并且马上缓存起来，然后将之作为结果返回
+    //正则解释：字符串开始位置匹配或者匹配空格，然后是名字，然后再匹配空格或者字符串结束位置
     function classRE(name) {
         return name in classCache ?
             classCache[name] : (classCache[name] = new RegExp('(^|\\s)' + name + '(\\s|$)'))
@@ -329,6 +334,8 @@ var Zepto = (function() {
         return selector == null ? $(nodes) : $(nodes).filter(selector)
     }
 
+    //如果浏览器dom对象本身支持contains方法，则使用自带方法
+    //否则从node元素开始，一层一层递归往上找node.parentNode对象，直到找到parent===node.parentNode，找到了则返回true，否则返回false
     $.contains = document.documentElement.contains ?
         function(parent, node) {
             return parent !== node && parent.contains(node)
@@ -352,7 +359,13 @@ var Zepto = (function() {
         var klass = node.className || '',
             svg   = klass && klass.baseVal !== undefined
 
+        //优先取值！！！
+        //如果value值为undefined，即value没有传入，则说明取值
+        //如果svg为true，即klass.baseVal为真，则返回klass.baseVal，否则，返回klass
         if (value === undefined) return svg ? klass.baseVal : klass
+
+        //如果value不等于undefined，
+        //简单说：如果是svg，则设置其baseVal，如果不是，则设置元素的className
         svg ? (klass.baseVal = value) : (node.className = value)
     }
 
@@ -385,12 +398,14 @@ var Zepto = (function() {
     $.isArray = isArray
     $.isPlainObject = isPlainObject
 
+    //这里会遍历原型对象
     $.isEmptyObject = function(obj) {
         var name
         for (name in obj) return false
         return true
     }
 
+    //参数i是fromIndex，默认值是0
     $.inArray = function(elem, array, i){
         return emptyArray.indexOf.call(array, elem, i)
     }
@@ -470,10 +485,13 @@ var Zepto = (function() {
         ready: function(callback){
             // need to check if document.body exists for IE as that browser reports
             // document ready when it hasn't yet created the body element
+            //如果文档已经加载完成了，则当执行ready函数的时候，直接执行callback函数
+            //如果文档未加载完，则给document的DOMContentLoaded事件绑定事件函数，监听冒泡阶段，不兼容ie
             if (readyRE.test(document.readyState) && document.body) callback($)
             else document.addEventListener('DOMContentLoaded', function(){ callback($) }, false)
             return this
         },
+        //如果不传入参数，则以数组的形式全部取回
         get: function(idx){
             return idx === undefined ? slice.call(this) : this[idx >= 0 ? idx : idx + this.length]
         },
@@ -487,6 +505,9 @@ var Zepto = (function() {
                     this.parentNode.removeChild(this)
             })
         },
+        //以Array.prototype.every函数来遍历，所以，如果callback函数返回false，则遍历会终止
+        //callback函数的执行上下文是从Zepto中通过every函数遍历出来的标准dom对象el，传入的参数是idx, el
+        //遍历终止之后，返回Zepto对象本身，便于链式调用
         each: function(callback){
             emptyArray.every.call(this, function(el, idx){
                 return callback.call(el, idx, el) !== false
@@ -769,6 +790,9 @@ var Zepto = (function() {
         index: function(element){
             return element ? this.indexOf($(element)[0]) : this.parent().children().indexOf(this[0])
         },
+        //调用Array.prototype.some(callback [, thisArg])函数，
+        //Array.prototype.some的第二个可选参数thisArg是第一个参数callback的上下文
+        //这里的thisArg参数是classRE(name)
         hasClass: function(name){
             if (!name) return false
             return emptyArray.some.call(this, function(el){
