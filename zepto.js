@@ -57,14 +57,23 @@ var Zepto = (function() {
         isArray = Array.isArray ||
             function(object){ return object instanceof Array }
 
+    //函数功能：当前元素能被指定的css选择器查找到,则返回true,否则返回false
     zepto.matches = function(element, selector) {
+        //如果selector参数没有传入，或者element参数没有传入，或者element不是dom元素，则直接返回false
         if (!selector || !element || element.nodeType !== 1) return false
+
+        //Element.matches(selector)函数：如果当前元素能被指定的css选择器查找到,则返回true,否则返回false.
+        //
         var matchesSelector = element.webkitMatchesSelector || element.mozMatchesSelector ||
             element.oMatchesSelector || element.matchesSelector
+        //如果浏览器支持以上方法中的一个，则直接调用该方法！
         if (matchesSelector) return matchesSelector.call(element, selector)
         // fall back to performing a selector:
+        //如果不支持，则降级处理
         var match, parent = element.parentNode, temp = !parent
+        //如果元素没有父节点，则创建一个新的div节点做为该元素的父节点，并将元素element并入该父节点parent
         if (temp) (parent = tempParent).appendChild(element)
+        //
         match = ~zepto.qsa(parent, selector).indexOf(element)
         temp && tempParent.removeChild(element)
         return match
@@ -88,6 +97,8 @@ var Zepto = (function() {
     // 该函数去掉数组中为空的元素，如undefined和null
     function compact(array) { return filter.call(array, function(item){ return item != null }) }
     //这里是把二维数组降维成一维数组，也可以把类数组对象转换成标准数组
+    //利用的方法是，使用apply第二个参数是数组的特性，把目标array转成函数参数。而函数就是concat
+    //有必要说一下concat函数：concat函数参数可以有任意多个；参数可以是数组，也可以是非数组；concat并不改变原数组，会返回一个新的合并之后的数组。另外，字符串也有concat函数，只是性能底下，建议使用+=做字符串拼接
     function flatten(array) { return array.length > 0 ? $.fn.concat.apply([], array) : array }
     //该函数把a-bc-de类型的转换成aBcDe类型
     camelize = function(str){ return str.replace(/-+(.)?/g, function(match, chr){ return chr ? chr.toUpperCase() : '' }) }
@@ -455,10 +466,13 @@ var Zepto = (function() {
 
     $.each = function(elements, callback){
         var i, key
+        //如果elements是类数组对象，则遍历之，以elements[i]为上下文执行callback函数，参数为i和elements[i];如果执行结果===false，则立马返回，返回值就是elements
         if (likeArray(elements)) {
             for (i = 0; i < elements.length; i++)
                 if (callback.call(elements[i], i, elements[i]) === false) return elements
-        } else {
+        }
+        //如果不是类数组，则遍历该对象，执行同样的操作。
+        else {
             for (key in elements)
                 if (callback.call(elements[key], key, elements[key]) === false) return elements
         }
@@ -466,10 +480,12 @@ var Zepto = (function() {
         return elements
     }
 
+    //此grep函数，就是原生Array.prototype.filter函数调用，从elements中筛选出callback返回值为true的元素
     $.grep = function(elements, callback){
         return filter.call(elements, callback)
     }
 
+    //此parseJSON方法，就是JSON.parse方法的调用
     if (window.JSON) $.parseJSON = JSON.parse
 
     // Populate the class2type map
@@ -492,15 +508,21 @@ var Zepto = (function() {
         // `map` and `slice` in the jQuery API work differently
         // from their array counterparts
         map: function(fn){
+            //这里面的this对象，指向调用该map函数的Zepto元素
+            //首先对Zepto元素调用map函数，返回值是一个数组，再对该数组转换成标准的Zepto对象
+            //所以，这里fn函数最好能返回一个标准的dom元素
             return $($.map(this, function(el, i){ return fn.call(el, i, el) }))
         },
         slice: function(){
+            //Array.prototype.slice(startIndex, endIndex)函数，包头不包尾！
+            //另外，如果对数组执行slice函数不带任何参数，则会返回一份原数组的拷贝，利用此方法可以浅拷贝一个数组
             return $(slice.apply(this, arguments))
         },
 
         ready: function(callback){
             // need to check if document.body exists for IE as that browser reports
             // document ready when it hasn't yet created the body element
+            //document.readyState说明：当document文档正在加载时,返回"loading",当文档结束渲染但在加载内嵌资源时,返回"interactive",当文档加载完成时,返回"complete".
             //如果文档已经加载完成了，则当执行ready函数的时候，直接执行callback函数
             //如果文档未加载完，则给document的DOMContentLoaded事件绑定事件函数，监听冒泡阶段，不兼容ie
             if (readyRE.test(document.readyState) && document.body) callback($)
@@ -516,7 +538,11 @@ var Zepto = (function() {
             return this.length
         },
         remove: function(){
+            //这里的this对象指向调用该remove函数的Zepto元素
+            //this.each函数返回值就是该this对象，便于链式调用
             return this.each(function(){
+                //从父节点中删除子节点！
+                //这里注意this的指向这里面的this指向当前遍历出来的el元素
                 if (this.parentNode != null)
                     this.parentNode.removeChild(this)
             })
@@ -526,6 +552,7 @@ var Zepto = (function() {
         //遍历终止之后，返回Zepto对象本身，便于链式调用
         each: function(callback){
             emptyArray.every.call(this, function(el, idx){
+                //注意call函数的第一个参数是el，这里已经绑定了callback执行函数的上下文this，就是el元素！后面凡是在each的callback函数中调用的this，都是指向当前遍历的元素el
                 return callback.call(el, idx, el) !== false
             })
             return this
@@ -534,6 +561,7 @@ var Zepto = (function() {
             //这里面的this，都是只想调用该filter方法的Zepto对象
             //如果filter是函数，则
             if (isFunction(selector)) return this.not(this.not(selector))
+            //如果selector不是函数，对this进行过滤操作：
             return $(filter.call(this, function(element){
                 return zepto.matches(element, selector)
             }))
@@ -546,15 +574,15 @@ var Zepto = (function() {
         },
         not: function(selector){
             var nodes=[]
-            //如果参数selector是函数，则遍历该Zepto对象。该函数有一个参数idx，返回值类型是Boolean类型
+            //如果参数selector是函数，则遍历该Zepto对象。该函数需有一个参数idx，返回值类型是Boolean类型
             if (isFunction(selector) && selector.call !== undefined)
                 this.each(function(idx){
-                    //这里面的this是从Zepto对象里面遍历出来的普通dom对象
+                    //这里面的this是从Zepto对象（即外层this对象）里面遍历出来的普通dom对象
                     //如果以该dom作为上下文调用该函数selector，返回值为假，则将该dom元素存入nodes数组
                     if (!selector.call(this,idx)) nodes.push(this)
                 })
             else {
-                //如果selector不是函数，
+                //如果selector是字符串，
                 var excludes = typeof selector == 'string' ? this.filter(selector) :
                     (likeArray(selector) && isFunction(selector.item)) ? slice.call(selector) : $(selector)
                 this.forEach(function(el){
